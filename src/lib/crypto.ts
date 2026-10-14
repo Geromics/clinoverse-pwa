@@ -54,9 +54,12 @@ export function verifyMessage(publicKeyHex: string, messageHex: string, signedMe
   return ec.keyFromPublic(publicKeyHex, 'hex').verify(messageHash, hex.toBytes(signedMessageHex));
 }
 
-// ECDH shared secret as un-padded hex (protocol quirk; do not pad).
+// ECDH shared secret as un-padded hex (protocol quirk: aes-js reads 63 hex chars as 32 bytes).
+// Only secrets of <= 62 hex chars (~1 in 256) are padded to 64; unpadded they make a 31-byte
+// key that aes-js rejects. Same rule as covcheck and upload.
 function getSecretKey(keyPair: KeyPair, remotePubKeyHex: string): string {
-  return keyPair.derive(ec.keyFromPublic(remotePubKeyHex, 'hex').getPublic()).toString('hex');
+  const hex = keyPair.derive(ec.keyFromPublic(remotePubKeyHex, 'hex').getPublic()).toString('hex');
+  return hex.length < 63 ? hex.padStart(64, '0') : hex;
 }
 
 function encrypt(pt: string, keyHex: string) {
@@ -124,8 +127,9 @@ export function identityFromMnemonic(raw: string): Identity {
 
 export const createIdentity = () => identityFromMnemonic(randomMnemonic());
 
-export function authParameters(identity: Identity) {
-  return { userDid: identity.did, ...signMessage(identity.keyPair, randomBytes(16)) };
+// POST /auth body: sign the single-use nonce from GET /auth/challenge.
+export function authParameters(identity: Identity, nonceHex: string) {
+  return { userDid: identity.did, ...signMessage(identity.keyPair, hex.toBytes(nonceHex)) };
 }
 
 // Per-id record keys derived from a private key (user's own, or the demo account's).

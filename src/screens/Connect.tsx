@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { buildKeysData } from '../lib/connect';
+import { buildKeysData, isInline } from '../lib/connect';
+import { loadDetails } from '../lib/details';
 import type { AccessTo } from '../lib/api';
 import type { SessionCode } from '../lib/session';
 import { describeError, useStore } from '../store';
@@ -22,7 +23,7 @@ export function Connect({ code, onBack, onDone }: { code: SessionCode; onBack: (
         if (cancelled) return;
         const fallback = providers.find((p) => p.providerDid === code.providerDid);
         setRequest({ providerName: info.providerName || fallback?.providerName, accessTo: info.accessTo, description: info.description || fallback?.description });
-        setKeysData(buildKeysData(info, { identity: state.identity, demo: !!state.account?.demo, providers, files }));
+        setKeysData(buildKeysData(info, { identity: state.identity, demo: !!state.account?.demo, providers, files, details: loadDetails() }));
       } catch (e) {
         if (!cancelled) setError(describeError(e));
       }
@@ -50,7 +51,14 @@ export function Connect({ code, onBack, onDone }: { code: SessionCode; onBack: (
         <>
           <h2>{request.providerName || 'Unknown service'}</h2>
           <p className="muted">would like to connect and</p>
-          <ul className="bullets">{(request.accessTo || []).map((a, i) => <li key={i}>link to your <b>{a.label}</b></li>)}</ul>
+          <ul className="bullets">
+            {(request.accessTo || []).map((a, i) => {
+              const inline = (a.info || []).filter(isInline);
+              if (inline.length === 0) return <li key={i}>link to your <b>{a.label}</b></li>;
+              const details = loadDetails();
+              return <li key={i}>see your <b>{a.label}</b>: <b className="value">{inline.map((id) => details[id] || 'not set').join(', ')}</b></li>;
+            })}
+          </ul>
           {request.description ? <p className="muted small">{request.description}</p> : null}
         </>
       ) : null}

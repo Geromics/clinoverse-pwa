@@ -64,6 +64,7 @@ textarea { resize: vertical; }
 .item { display: flex; gap: 0.75rem; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--line); }
 .grow { flex: 1; min-width: 0; }
 .bullets { padding-left: 1.2rem; }
+.details { display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem 0 4rem; }
 
 .pin { display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-top: 2rem; }
 .pin input { position: absolute; opacity: 0; width: 1px; height: 1px; }

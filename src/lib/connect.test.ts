@@ -44,6 +44,33 @@ describe('buildKeysData', () => {
     expect(() => buildKeysData(info({ providerPublicKey: 'abc' }), base)).toThrow('Invalid provider public key.');
   });
 
+  it('sends self-declared values as _values, with no file keys when nothing else is asked', () => {
+    const shop = info({ accessTo: [{ label: 'shoe size', info: ['shoe_size'] }] });
+    const keys = open(buildKeysData(shop, { ...base, files: [], details: { shoe_size: ' 10 UK ', other: 'x' } }));
+    expect(keys).toEqual({ _values: { shoe_size: '10 UK' } });
+  });
+
+  it('adds _values next to file keys for mixed requests', () => {
+    const mixed = info({ accessTo: [{ label: 'genome', SNPs: ['rs1'] }, { label: 'shoe size', info: ['shoe_size'] }] });
+    const keys = open(buildKeysData(mixed, { ...base, details: { shoe_size: '42 EU' } }));
+    expect(Object.keys(keys)).toEqual(['header', 'rs1', '_values']);
+    expect(keys._values).toEqual({ shoe_size: '42 EU' });
+    expect(keys.rs1).toBe(getKeyFromId(identity.privateKey, 'rs1'));
+  });
+
+  it('refuses an inline item the user has not set', () => {
+    const shop = info({ accessTo: [{ label: 'shoe size', info: ['shoe_size'] }] });
+    expect(() => buildKeysData(shop, base)).toThrow('Add your shoe size under My details first.');
+    expect(() => buildKeysData(shop, { ...base, details: { shoe_size: '  ' } })).toThrow('My details');
+  });
+
+  it('never adds _values to SNP or master_key requests', () => {
+    const details = { shoe_size: '10 UK' };
+    expect(open(buildKeysData(info(), { ...base, details }))._values).toBeUndefined();
+    const mk = open(buildKeysData(info({ accessTo: [{ label: 'key', info: ['master_key'] }] }), { ...base, details }));
+    expect(mk).toEqual({ master_key: identity.privateKey });
+  });
+
   it('allows demo accounts on enabledInDemo providers', () => {
     expect(() => buildKeysData(info(), { ...base, demo: true, providers: [{ ...provider, enabledInDemo: true }] })).not.toThrow();
   });

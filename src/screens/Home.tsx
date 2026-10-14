@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { describeError, useStore } from '../store';
 import { Confirm, ErrorText, Screen } from '../components/ui';
 import type { Connection, Provider } from '../lib/api';
+import { loadDetails, saveDetails } from '../lib/details';
 
-type Tab = 'connections' | 'files' | 'services';
+type Tab = 'connections' | 'files' | 'services' | 'details';
 const POLL_MS = 3000;
 
 export function Home({ onScan, onSettings, onBackup }: { onScan: () => void; onSettings: () => void; onBackup: () => void }) {
@@ -80,7 +81,7 @@ export function Home({ onScan, onSettings, onBackup }: { onScan: () => void; onS
             <div className="grow">
               <b>{p.providerName}</b>
               <div className="muted small">{p.description}</div>
-              {p.providerType === 'institution' && !hasFile ? <div className="small warn">Upload a file with the File Uploader first.</div> : null}
+              {p.providerType === 'institution' && !hasFile && p.accessTo!.some((a) => a.SNPs?.length) ? <div className="small warn">Upload a file with the File Uploader first.</div> : null}
             </div>
             {p.webAddress ? <a className="btn small" href={p.webAddress} target="_blank" rel="noreferrer">Open</a> : null}
           </li>
@@ -95,12 +96,12 @@ export function Home({ onScan, onSettings, onBackup }: { onScan: () => void; onS
         <button className="banner" onClick={onBackup}>You have not backed up your account yet. Tap to see your recovery words.</button>
       ) : null}
       <nav className="tabs">
-        {(['connections', 'files', 'services'] as Tab[]).map((t) => (
+        {(['connections', 'files', 'services', 'details'] as Tab[]).map((t) => (
           <button key={t} className={t === tab ? 'on' : ''} onClick={() => setTab(t)}>{t[0].toUpperCase() + t.slice(1)}</button>
         ))}
       </nav>
       <ErrorText error={error} />
-      {tab === 'connections' ? connections() : tab === 'files' ? files() : services()}
+      {tab === 'connections' ? connections() : tab === 'files' ? files() : tab === 'services' ? services() : <MyDetails />}
       <button className="fab" onClick={onScan}>Scan QR</button>
       {confirm ? <Confirm message={confirm.message} onYes={doConfirm} onNo={() => setConfirm(null)} /> : null}
     </Screen>
@@ -117,5 +118,25 @@ function ConnectionItem({ c, provider, onDelete }: { c: Connection; provider?: P
       </div>
       <button className="icon-btn" aria-label="Disconnect" onClick={onDelete}>&#128465;</button>
     </li>
+  );
+}
+
+// Self-declared details, kept on this device only. A service sees one only if it asks and you accept.
+function MyDetails() {
+  const [shoe, setShoe] = useState(() => loadDetails().shoe_size ?? '');
+  const [saved, setSaved] = useState(true);
+  const save = () => {
+    saveDetails({ ...loadDetails(), shoe_size: shoe });
+    setSaved(true);
+  };
+  return (
+    <div className="details">
+      <p className="muted small">Kept on this device. Shared only when a service asks for it and you accept.</p>
+      <label className="field">
+        <span>Shoe size</span>
+        <input value={shoe} maxLength={24} placeholder="e.g. 10 UK or 44 EU" onChange={(e) => { setShoe(e.target.value); setSaved(false); }} />
+      </label>
+      <button className="btn" onClick={save} disabled={saved}>{saved ? 'Saved' : 'Save'}</button>
+    </div>
   );
 }

@@ -70,6 +70,7 @@ async function call<T>(method: string, path: string, body?: unknown, token?: str
 export interface AuthParams { userDid: string; message: string; signedMessage: string; }
 
 export const api = {
+  challenge: () => call<{ nonce: string }>('GET', 'auth/challenge'),
   auth: (p: AuthParams) => call<{ accessToken: string }>('POST', 'auth', p),
   register: (p: { userDid: string; publicKey: string }) => call<unknown>('POST', 'auth/register', p),
   restore: (p: { userDid: string }) => call<unknown>('POST', 'auth/restore', p),

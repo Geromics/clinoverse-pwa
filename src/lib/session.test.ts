@@ -14,6 +14,11 @@ describe('parseCode', () => {
     expect(parseCode('')).toBeNull();
     expect(parseCode('short')).toBeNull();
   });
+  it('accepts the deep link itself (QR codes a phone camera can open)', () => {
+    expect(parseCode(`https://app.example.org/?code=${sid}`)?.sessionId).toBe(sid);
+    expect(parseCode(`http://app.127-0-0-1.nip.io/clinoverse-pwa/?code=${encodeURIComponent(sid)}`)?.sessionId).toBe(sid);
+    expect(parseCode('https://example.org/?nothing=1')).toBeNull();
+  });
   it('reads ?code= from a query string', () => {
     expect(codeFromUrl('?code=' + sid)).toBe(sid);
     expect(codeFromUrl('?x=1')).toBeNull();

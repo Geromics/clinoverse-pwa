@@ -44,9 +44,10 @@ describe('signatures', () => {
   it.skipIf(!existsSync(CLINO_CRYPTO))('auth parameters verify with clino verifyMessage', () => {
     const clino = loadClinoCryptoUtils();
     const id = createIdentity();
-    const { userDid, message, signedMessage } = authParameters(id);
+    const nonce = 'a1'.repeat(16);
+    const { userDid, message, signedMessage } = authParameters(id, nonce);
     expect(userDid).toBe(id.did);
-    expect(message).toMatch(/^[0-9a-f]{32}$/);
+    expect(message).toBe(nonce);
     expect(clino.verifyMessage(id.publicKey, message, signedMessage)).toBe(true);
     expect(clino.verifyMessage(id.publicKey, message.replace(/^../, '00'), signedMessage)).toBe(false);
     expect(verifyMessage(id.publicKey, message, signedMessage)).toBe(true);
@@ -79,6 +80,25 @@ describe('asymmetric envelope', () => {
     const json = { a: '1', b: '2' };
     const env = encryptAsymmetric(json, remotePub, ec.keyFromPrivate(localPriv, 'hex'));
     expect(decryptAsymmetric(env, ec.keyFromPrivate(remotePriv, 'hex'))).toEqual(json);
+  });
+
+  // ECDH quirk: secrets are un-padded hex, except <= 62 chars (~1 in 256), padded to 64 (as covcheck/upload).
+  const shortPriv = '0a730e5ac8a519c17bd3d71d62b6e4904ceffcf69d26c4d9e950c01e561b7449'; // secret is <= 62 hex chars
+  const oddPriv = '4997c672f8431cfc3bd524c3844b5b1c053b11f473a6c8d928a379492594f3f6'; // secret is 63 hex chars
+  const rawSecretLength = (priv: string) => ec.keyFromPrivate(priv, 'hex').derive(ec.keyFromPrivate(remotePriv, 'hex').getPublic()).toString('hex').length;
+
+  it('round-trips when the shared secret is short (padded)', () => {
+    expect(rawSecretLength(shortPriv)).toBeLessThanOrEqual(62);
+    const keys = { header: 'ab'.repeat(16) };
+    const env = encryptAsymmetric(keys, remotePub, ec.keyFromPrivate(shortPriv, 'hex'));
+    expect(decryptAsymmetric(env, ec.keyFromPrivate(remotePriv, 'hex'))).toEqual(keys);
+  });
+
+  it('keeps 63-char secrets unpadded (wire-compatible with the reference)', () => {
+    expect(rawSecretLength(oddPriv)).toBe(63);
+    const keys = { header: 'ab'.repeat(16) };
+    const env = encryptAsymmetric(keys, remotePub, ec.keyFromPrivate(oddPriv, 'hex'));
+    expect(referenceDecrypt(env, remotePriv)).toEqual(keys);
   });
 
   it('record encryption round-trips', () => {

@@ -5,7 +5,12 @@ export interface SessionCode {
   providerPublicKey?: string;
 }
 
+// A QR may also hold the deep link itself (<APP_URL>/?code=<sessionId>), so a phone camera can open it.
 export function parseCode(text: string): SessionCode | null {
+  if (/^https?:\/\//i.test(text.trim())) {
+    const code = URL.canParse(text.trim()) ? codeFromUrl(new URL(text.trim()).search) : null;
+    return code ? parseCode(code) : null;
+  }
   const [sessionId, providerPublicKey] = text.trim().split(/\s+/, 2);
   if (!sessionId || sessionId.length <= 8) return null;
   return {

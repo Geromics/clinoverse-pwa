@@ -80,15 +80,18 @@ export function describeError(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+// Sign a fresh single-use challenge from clino and log in.
+const signIn = async (identity: Identity) => (await api.auth(authParameters(identity, (await api.challenge()).nonce))).accessToken;
+
 // POST /auth; on 401 (unknown user) optionally restore a backup or register, then retry once.
 async function obtainToken(identity: Identity, fallback: 'restore' | 'register' | 'none'): Promise<string> {
   try {
-    return (await api.auth(authParameters(identity))).accessToken;
+    return await signIn(identity);
   } catch (e) {
     if (!(e instanceof ApiError) || e.status !== 401 || fallback === 'none') throw e;
     if (fallback === 'restore') await api.restore({ userDid: identity.did });
     else await api.register({ userDid: identity.did, publicKey: identity.publicKey });
-    return (await api.auth(authParameters(identity))).accessToken;
+    return await signIn(identity);
   }
 }
 
