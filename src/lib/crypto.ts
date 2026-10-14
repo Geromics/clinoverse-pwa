@@ -132,5 +132,17 @@ export function authParameters(identity: Identity, nonceHex: string) {
   return { userDid: identity.did, ...signMessage(identity.keyPair, hex.toBytes(nonceHex)) };
 }
 
-// Per-id record keys derived from a private key (user's own, or the demo account's).
-export const fileKeygen = (privateKeyHex: string) => (id: string) => getKeyFromId(privateKeyHex, id);
+// Per-id record keys: PBKDF2(root, id). root = the file key (v2), or, for legacy files only, the
+// owner's private key.
+export const fileKeygen = (rootHex: string) => (id: string) => getKeyFromId(rootHex, id);
+
+// v2 file format: the uploader makes a random 32-byte file key per upload and stores it in the file
+// as record `filekey \t <envelope of {file_key}> \t -`, wrapped to the owner's public key with a
+// throwaway sender key. Only the owner can unwrap it; clino hands it to the owner only (POST /file/key).
+export const FILEKEY_ID = 'filekey';
+
+export function unwrapFileKey(envelope: string, keyPair: KeyPair): string {
+  const fileKey = (decryptAsymmetric(envelope, keyPair) as { file_key?: unknown })?.file_key;
+  if (typeof fileKey !== 'string' || !/^[0-9a-f]{64}$/.test(fileKey)) throw new Error('Invalid file key.');
+  return fileKey;
+}

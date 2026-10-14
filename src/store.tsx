@@ -169,6 +169,7 @@ function makeActions(get: () => State, dispatch: (a: Action) => void) {
     unlock,
     loadProviders,
     loadFiles,
+    loadFileKeys: () => authed(api.fileKeys),
     refresh,
     reset,
     async createAccount() {

@@ -81,6 +81,8 @@ export const api = {
   connections: (token: string) => call<Connection[]>('POST', 'connection/getlist', undefined, token),
   deleteConnection: (sessionId: string, token: string) => call<unknown>('DELETE', 'connection', { sessionId }, token),
   files: (token: string) => call<StoredFile[]>('POST', 'file/getlist', undefined, token),
+  // Wrapped file keys of the user's own files: { [fileId]: envelope }. Legacy files are absent.
+  fileKeys: (token: string) => call<Record<string, string>>('POST', 'file/key', undefined, token),
   deleteFile: (token: string) => call<unknown>('DELETE', 'file', undefined, token),
   deleteUser: (token: string) => call<unknown>('DELETE', 'user', undefined, token),
 };

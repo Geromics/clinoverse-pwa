@@ -21,9 +21,11 @@ export function Connect({ code, onBack, onDone }: { code: SessionCode; onBack: (
       try {
         const [providers, files, info] = await Promise.all([actions.loadProviders(), actions.loadFiles(), actions.inspect(code.sessionId)]);
         if (cancelled) return;
+        const wrappedKeys = files.length > 0 ? await actions.loadFileKeys() : {};
+        if (cancelled) return;
         const fallback = providers.find((p) => p.providerDid === code.providerDid);
         setRequest({ providerName: info.providerName || fallback?.providerName, accessTo: info.accessTo, description: info.description || fallback?.description });
-        setKeysData(buildKeysData(info, { identity: state.identity, demo: !!state.account?.demo, providers, files, details: loadDetails() }));
+        setKeysData(buildKeysData(info, { identity: state.identity, demo: !!state.account?.demo, providers, files, details: loadDetails(), wrappedKeys }));
       } catch (e) {
         if (!cancelled) setError(describeError(e));
       }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildKeysData } from './connect';
-import { createIdentity, decryptAsymmetric, getKeyFromId, makeKeyPair, randomBytes } from './crypto';
-import { demoFileKeygen } from './demo';
+import { createIdentity, decryptAsymmetric, encryptAsymmetric, getKeyFromId, hex, makeKeyPair, randomBytes } from './crypto';
+import { demoIdentity } from './demo';
 import type { Provider, SessionInfo, StoredFile } from './api';
 
 const providerKp = makeKeyPair(randomBytes(32));
@@ -17,22 +17,47 @@ const file: StoredFile = { fileId: 'f', fileName: 'genome.txt' };
 const info = (over: Partial<SessionInfo> = {}): SessionInfo => ({ providerDid: provider.providerDid, accessTo: provider.accessTo, ...over });
 const base = { identity, demo: false, providers: [provider], files: [file] };
 const open = (env: string) => decryptAsymmetric(env, providerKp) as Record<string, string>;
+// A v2 file: random file key, wrapped to the owner's public key (as the uploader stores it).
+const wrap = (fileKey: string, publicKey: string) => encryptAsymmetric({ file_key: fileKey }, publicKey, makeKeyPair(randomBytes(32)));
+const fileKey = hex.fromBytes(randomBytes(32));
+const v2 = { ...base, wrappedKeys: { f: wrap(fileKey, identity.publicKey) } };
+const uploader = { label: 'upload', info: ['public_key'] };
 
 describe('buildKeysData', () => {
-  it('sends per-id keys (info, header, SNPs) to the provider', () => {
-    const keys = open(buildKeysData(info(), base));
+  it('sends per-id keys (info, header, SNPs) derived from the unwrapped file key', () => {
+    const keys = open(buildKeysData(info(), v2));
     expect(Object.keys(keys)).toEqual(['birth_date', 'header', 'rs1', 'rs2']);
+    expect(keys.rs1).toBe(getKeyFromId(fileKey, 'rs1'));
+    expect(Object.values(keys)).not.toContain(getKeyFromId(identity.privateKey, 'rs1'));
+  });
+
+  it('derives from the private key for a legacy file (no filekey record)', () => {
+    const keys = open(buildKeysData(info(), base));
     expect(keys.rs1).toBe(getKeyFromId(identity.privateKey, 'rs1'));
   });
 
-  it('uses demo keys for a linked demo file', () => {
-    const keys = open(buildKeysData(info(), { ...base, files: [{ fileId: 'd', fileName: '' }] }));
-    expect(keys.header).toBe(demoFileKeygen()('header'));
+  it('unwraps a linked demo file with the demo identity', () => {
+    const demo = demoIdentity();
+    const demoKey = hex.fromBytes(randomBytes(32));
+    const files = [{ fileId: 'd', fileName: '' }];
+    const keys = open(buildKeysData(info(), { ...base, files, wrappedKeys: { d: wrap(demoKey, demo.publicKey) } }));
+    expect(keys.header).toBe(getKeyFromId(demoKey, 'header'));
+    expect(open(buildKeysData(info(), { ...base, files })).header).toBe(getKeyFromId(demo.privateKey, 'header')); // legacy demo file
   });
 
-  it('sends only the master key when that is the sole info item', () => {
-    const keys = open(buildKeysData(info({ accessTo: [{ label: 'key', info: ['master_key'] }] }), base));
-    expect(keys).toEqual({ master_key: identity.privateKey });
+  it('refuses a file key wrapped to someone else', () => {
+    const other = createIdentity();
+    expect(() => buildKeysData(info(), { ...base, wrappedKeys: { f: wrap(fileKey, other.publicKey) } })).toThrow();
+  });
+
+  it('gives the uploader only the public key', () => {
+    const keys = open(buildKeysData(info({ accessTo: [uploader] }), { ...base, files: [] }));
+    expect(keys).toEqual({ public_key: identity.publicKey });
+  });
+
+  it('refuses a request for the private key', () => {
+    expect(() => buildKeysData(info({ accessTo: [{ label: 'key', info: ['master_key'] }] }), base)).toThrow('private key');
+    expect(() => buildKeysData(info({ accessTo: [{ label: 'k', SNPs: ['rs1'], info: ['master_key'] }] }), base)).toThrow('private key');
   });
 
   it('rejects what the old dialog rejected', () => {
@@ -52,10 +77,10 @@ describe('buildKeysData', () => {
 
   it('adds _values next to file keys for mixed requests', () => {
     const mixed = info({ accessTo: [{ label: 'genome', SNPs: ['rs1'] }, { label: 'shoe size', info: ['shoe_size'] }] });
-    const keys = open(buildKeysData(mixed, { ...base, details: { shoe_size: '42 EU' } }));
+    const keys = open(buildKeysData(mixed, { ...v2, details: { shoe_size: '42 EU' } }));
     expect(Object.keys(keys)).toEqual(['header', 'rs1', '_values']);
     expect(keys._values).toEqual({ shoe_size: '42 EU' });
-    expect(keys.rs1).toBe(getKeyFromId(identity.privateKey, 'rs1'));
+    expect(keys.rs1).toBe(getKeyFromId(fileKey, 'rs1'));
   });
 
   it('refuses an inline item the user has not set', () => {
@@ -64,11 +89,11 @@ describe('buildKeysData', () => {
     expect(() => buildKeysData(shop, { ...base, details: { shoe_size: '  ' } })).toThrow('My details');
   });
 
-  it('never adds _values to SNP or master_key requests', () => {
+  it('never adds _values to SNP or public_key requests', () => {
     const details = { shoe_size: '10 UK' };
-    expect(open(buildKeysData(info(), { ...base, details }))._values).toBeUndefined();
-    const mk = open(buildKeysData(info({ accessTo: [{ label: 'key', info: ['master_key'] }] }), { ...base, details }));
-    expect(mk).toEqual({ master_key: identity.privateKey });
+    expect(open(buildKeysData(info(), { ...v2, details }))._values).toBeUndefined();
+    const pk = open(buildKeysData(info({ accessTo: [uploader] }), { ...base, details }));
+    expect(pk).toEqual({ public_key: identity.publicKey });
   });
 
   it('allows demo accounts on enabledInDemo providers', () => {

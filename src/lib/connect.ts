@@ -1,6 +1,6 @@
 // Connection grant: the same validation and key material as the old ConnectionDialog.getEncryptedKeyData.
-import { encryptAsymmetric, fileKeygen, type Identity } from './crypto';
-import { demoFileKeygen } from './demo';
+import { encryptAsymmetric, fileKeygen, unwrapFileKey, type Identity } from './crypto';
+import { demoIdentity } from './demo';
 import type { Provider, SessionInfo, StoredFile } from './api';
 
 // Info items the user declares in the app ("My details"), not records in the genome file.
@@ -10,7 +10,10 @@ export const isInline = (id: string) => Object.hasOwn(INLINE_INFO, id);
 
 export function buildKeysData(
   info: SessionInfo,
-  opts: { identity: Identity | null; demo: boolean; providers: Provider[]; files: StoredFile[]; details?: Record<string, string> },
+  opts: {
+    identity: Identity | null; demo: boolean; providers: Provider[]; files: StoredFile[]; details?: Record<string, string>;
+    wrappedKeys?: Record<string, string>; // POST /file/key: { [fileId]: wrapped file key }
+  },
 ): string {
   const { providerDid, providerPublicKey, accessTo } = info;
   const validRequirements =
@@ -37,17 +40,30 @@ export function buildKeysData(
   const unset = inline.filter((id) => !values[id]);
   if (unset.length > 0) throw new Error(`Add your ${unset.map((id) => INLINE_INFO[id]).join(' and ')} under My details first.`);
 
+  // The private key never leaves the phone; old uploaders asked for it as `master_key`.
+  if (infoItems.includes('master_key')) throw new Error('This service asks for your private key. Clinoverse never shares it.');
+
   let keysData: Record<string, unknown>;
-  if (infoItems.length === 1 && infoItems[0] === 'master_key') {
-    keysData = { master_key: identity.privateKey };
+  if (infoItems.length === 1 && infoItems[0] === 'public_key') {
+    keysData = { public_key: identity.publicKey }; // the uploader wraps a fresh file key to it
   } else if (infoItems.length === 0 && SNPs.length === 0) {
     keysData = {}; // only self-declared values: no file keys at all
   } else {
-    // A linked demo file (fileName === '') is encrypted with the demo account's keys. Header is always needed.
-    const keygen = opts.files[0]?.fileName === '' ? demoFileKeygen() : fileKeygen(identity.privateKey);
-    keysData = Object.fromEntries([...infoItems, 'header', ...SNPs].map((id) => [id, keygen(id)]));
+    const keygen = fileKeygen(fileRoot(identity, opts.files[0], opts.wrappedKeys));
+    keysData = Object.fromEntries([...infoItems, 'header', ...SNPs].map((id) => [id, keygen(id)])); // header is always needed
   }
   if (inline.length > 0) keysData._values = values;
   if (typeof receiverPublicKey !== 'string' || receiverPublicKey.length !== 130) throw new Error('Invalid provider public key.');
   return encryptAsymmetric(keysData, receiverPublicKey, identity.keyPair);
+}
+
+// The secret a file's record keys derive from. A linked demo file (fileName === '') belongs to the
+// demo account, so its key is unwrapped with the demo identity.
+function fileRoot(identity: Identity, file: StoredFile | undefined, wrappedKeys: Record<string, string> = {}): string {
+  const owner = file?.fileName === '' ? demoIdentity() : identity;
+  const wrapped = file && wrappedKeys[file.fileId];
+  if (wrapped) return unwrapFileKey(wrapped, owner.keyPair);
+  // LEGACY (pre-v2 uploads, no `filekey` record): keys derive from the owner's private key, which the
+  // old uploader held. Kept so old files still work. TODO: drop once every file has been re-uploaded.
+  return owner.privateKey;
 }
