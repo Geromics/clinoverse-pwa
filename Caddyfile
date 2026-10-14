@@ -1,0 +1,16 @@
+# Static PWA. TLS is terminated by the compose-level Caddy in front of this one.
+:80 {
+	root * /srv
+	encode zstd gzip
+
+	# The service worker and its entry points must never be cached, or updates stall.
+	@nocache path /sw.js /registerSW.js /index.html /manifest.webmanifest /
+	header @nocache Cache-Control "no-cache"
+	header /sw.js Service-Worker-Allowed "/"
+	# Hashed build assets are immutable.
+	header /assets/* Cache-Control "public, max-age=31536000, immutable"
+
+	# SPA fallback.
+	try_files {path} /index.html
+	file_server
+}
