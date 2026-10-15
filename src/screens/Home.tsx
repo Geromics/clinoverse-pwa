@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { describeError, useStore } from '../store';
-import { Confirm, ErrorText, Screen } from '../components/ui';
+import { Confirm, ErrorText, ProviderLogo, Screen } from '../components/ui';
 import type { Connection, Provider } from '../lib/api';
 import { loadDetails, saveDetails } from '../lib/details';
 
@@ -78,6 +78,7 @@ export function Home({ onScan, onSettings, onBackup }: { onScan: () => void; onS
         {list.length === 0 ? <li className="muted">No suitable services found.</li> : null}
         {list.map((p) => (
           <li key={p.providerDid} className="item">
+            <ProviderLogo name={p.providerName} image={p.providerImage} />
             <div className="grow">
               <b>{p.providerName}</b>
               <div className="muted small">{p.description}</div>
@@ -109,10 +110,12 @@ export function Home({ onScan, onSettings, onBackup }: { onScan: () => void; onS
 }
 
 function ConnectionItem({ c, provider, onDelete }: { c: Connection; provider?: Provider; onDelete: () => void }) {
+  const name = c.providerName || provider?.providerName;
   return (
     <li className="item">
+      <ProviderLogo name={name} image={c.providerImage || provider?.providerImage} />
       <div className="grow">
-        <b>{c.providerName || provider?.providerName || c.providerDid.slice(0, 24) + '…'}</b>
+        <b>{name || c.providerDid.slice(0, 24) + '…'}</b>
         <div className="muted small">{c.description || provider?.description}</div>
         <div className="muted small">{c.createdAt ? new Date(c.createdAt).toLocaleString() : ''} {c.state ? `· ${c.state}` : ''}</div>
       </div>

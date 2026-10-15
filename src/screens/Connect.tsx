@@ -4,9 +4,9 @@ import { loadDetails } from '../lib/details';
 import type { AccessTo } from '../lib/api';
 import type { SessionCode } from '../lib/session';
 import { describeError, useStore } from '../store';
-import { ErrorText, Screen, Spinner } from '../components/ui';
+import { ErrorText, ProviderLogo, Screen, Spinner } from '../components/ui';
 
-interface Request { providerName?: string; accessTo?: AccessTo[]; description?: string; }
+interface Request { providerName?: string; providerImage?: string; accessTo?: AccessTo[]; description?: string; }
 
 export function Connect({ code, onBack, onDone }: { code: SessionCode; onBack: () => void; onDone: () => void }) {
   const { state, actions } = useStore();
@@ -24,7 +24,7 @@ export function Connect({ code, onBack, onDone }: { code: SessionCode; onBack: (
         const wrappedKeys = files.length > 0 ? await actions.loadFileKeys() : {};
         if (cancelled) return;
         const fallback = providers.find((p) => p.providerDid === code.providerDid);
-        setRequest({ providerName: info.providerName || fallback?.providerName, accessTo: info.accessTo, description: info.description || fallback?.description });
+        setRequest({ providerName: info.providerName || fallback?.providerName, providerImage: info.providerImage || fallback?.providerImage, accessTo: info.accessTo, description: info.description || fallback?.description });
         setKeysData(buildKeysData(info, { identity: state.identity, demo: !!state.account?.demo, providers, files, details: loadDetails(), wrappedKeys }));
       } catch (e) {
         if (!cancelled) setError(describeError(e));
@@ -51,7 +51,10 @@ export function Connect({ code, onBack, onDone }: { code: SessionCode; onBack: (
       {!request && !error ? <Spinner label="Checking the request…" /> : null}
       {request ? (
         <>
-          <h2>{request.providerName || 'Unknown service'}</h2>
+          <div className="provider">
+            <ProviderLogo name={request.providerName} image={request.providerImage} size={64} />
+            <h2>{request.providerName || 'Unknown service'}</h2>
+          </div>
           <p className="muted">would like to connect and</p>
           <ul className="bullets">
             {(request.accessTo || []).map((a, i) => {

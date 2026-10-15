@@ -64,6 +64,10 @@ textarea { resize: vertical; }
 .item { display: flex; gap: 0.75rem; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--line); }
 .grow { flex: 1; min-width: 0; }
 .bullets { padding-left: 1.2rem; }
+.provider { display: flex; align-items: center; gap: 0.75rem; }
+.provider h2 { margin: 0; }
+.logo { flex: none; border-radius: 12px; object-fit: contain; }
+.avatar { display: inline-flex; align-items: center; justify-content: center; background: var(--blue); color: #fff; font-weight: 700; }
 .details { display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem 0 4rem; }
 
 .pin { display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-top: 2rem; }

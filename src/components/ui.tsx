@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { initialOf, providerImageUrl } from '../lib/images';
 
 export function Screen({ title, onBack, right, children }: { title: string; onBack?: () => void; right?: ReactNode; children: ReactNode }) {
   return (
@@ -77,4 +78,13 @@ export function Confirm({ message, onYes, onNo, yes = 'Delete' }: { message: str
       </div>
     </div>
   );
+}
+
+// A provider's logo, or the first letter of its name if it has none (or it fails to load).
+export function ProviderLogo({ name, image, size = 40 }: { name?: string; image?: string; size?: number }) {
+  const src = providerImageUrl(image);
+  const [failed, setFailed] = useState<string | null>(null);
+  if (!src || failed === src)
+    return <span className="logo avatar" style={{ width: size, height: size, fontSize: size * 0.45 }} aria-hidden>{initialOf(name)}</span>;
+  return <img className="logo" src={src} alt="" width={size} height={size} onError={() => setFailed(src)} />;
 }
